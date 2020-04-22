@@ -11,7 +11,9 @@ title("Original image");
 [h w]=size(chess);
 
 % noise generated
-t =(1-0.02)*rand(h,w)+ 0.02;
+X = butterlp(chess,1,1);
+t = X;
+%t =(1-0.02)    *rand(h,w)+ 0.02;
 %t =im2uint8(t);
 % noise displayed
 %subplot(222)
@@ -20,7 +22,7 @@ title('noise displayed');
 
 
 % parameters for image 
-alpha = 1;
+alpha = 0.6;
 L = max(chess(:));% brightest pixel 
 r = chess; % r= desired image 
 %subplot(224)
@@ -40,7 +42,7 @@ raw_input_fft = fft2(raw_input);
 
 
 % Ideal low pass filter
-Hj=butterlp(chess,15000,1);
+Hj=ideal_hpf(chess,15);
     %Inverse FFT 
     hj=ifft2(Hj);
         % Kaiser Window

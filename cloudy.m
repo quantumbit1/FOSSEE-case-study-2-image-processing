@@ -1,48 +1,71 @@
 % loading image 
-[chess2,chessmap] = imread('chessboardgrayscale.png');
+chess2 = imread('landsat5.jpg');
 chess=chess2;
 %imfinfo('chessboard.png');
 %chess = ind2gray(chess,chessmap);
-chess = im2double(chess);
-%subplot(221)
-imshow(im2uint8(chess),chessmap);
-title("Original image");
+[r_chess,b_chess,g_chess]=RGB_splitter(chess);
+r_chess = im2double(r_chess);
+b_chess = im2double(b_chess);
+g_chess = im2double(g_chess);
+%figure;
+%subplot(121)
+%imshow(im2uint8(chess),chessmap);
+%title("Original image");
 
-[h w]=size(chess);
+[h w]=size(r_chess);
 
 % noise generated
-X = butterlp(chess,1,1);
-t = X;
-%t =(1-0.02)    *rand(h,w)+ 0.02;
+X = butterhp(r_chess,50,1);
+t = X ;%movingmean((1-0.02)*rand(h,w)+ 0.02,101,2,2);
+%t =(1-0.02)*rand(h,w)+ 0.02;
 %t =im2uint8(t);
 % noise displayed
-%subplot(222)
+%subplot(121)
 imshow((t));
 title('noise displayed');
 
 
 % parameters for image 
-alpha = 0.6;
-L = max(chess(:));% brightest pixel 
-r = chess; % r= desired image 
+alpha = 1;
+L_r = max(r_chess(:));% brightest pixel
+L_b = max(b_chess(:));% brightest pixel
+L_g = max(g_chess(:));% brightest pixel
+
+r_red = r_chess; % r= desired image 
+r_blue = b_chess; % r= desired image 
+r_green = g_chess; % r= desired image 
+
+
 %subplot(224)
 %imshow(r);
 %title('r')
 
 % computation of the algorithm
-s = (((alpha*L).*r).*t) + L.*(1-t);
+s_red = (((alpha*L_r).*r_red).*t) + L_r.*(1-t);
+s_blue = (((alpha*L_b).*r_blue).*t) + L_b.*(1-t);
+s_green = (((alpha*L_g).*r_green).*t) + L_g.*(1-t);
+
+% Recombination of 3 channels;
+s = RGB_recombiner(s_red,s_blue,s_green,chess);
+
 %subplot(223)
-figure()
+figure;
 imshow(s);
-title('s')
+title('input')
+%-----------------------------------------------------------------------------------
 
-raw_input = log(L-s +0.01);
+raw_input_red = log(L_r-s_red +0.00001);
+raw_input_blue = log(L_b-s_blue +0.00001);
+raw_input_green = log(L_g-s_green +0.00001);
 % FFT Transform of raw_input
-raw_input_fft = fft2(raw_input);
+raw_input_fft_red = fft2(raw_input_red);
+raw_input_fft_blue = fft2(raw_input_blue);
+raw_input_fft_green = fft2(raw_input_green);
 
+%------------------------------------------------------------------------------------
 
 % Ideal low pass filter
-Hj=ideal_hpf(chess,15);
+Hj=ideal_lpf(chess,10000);
     %Inverse FFT 
     hj=ifft2(Hj);
         % Kaiser Window
@@ -56,28 +79,61 @@ Hj=ideal_hpf(chess,15);
     %stage 1
     %frequency domain multiplication of raw_input_fft with H_uv to produce 
     %output in frquency domain.
-    Output_in_frequency_domain = raw_input_fft.*H_uv;
+    Output_in_frequency_domain_red = raw_input_fft_red.*H_uv;
+    Output_in_frequency_domain_blue = raw_input_fft_blue.*H_uv;
+    Output_in_frequency_domain_green = raw_input_fft_green.*H_uv;
     
     %stage 2
     % IFFT of the previous frequncy domain output
-    Output_in_time_domain = ifft2(Output_in_frequency_domain);
+    Output_in_time_domain_red = ifft2(Output_in_frequency_domain_red);
+    Output_in_time_domain_blue = ifft2(Output_in_frequency_domain_blue);
+    Output_in_time_domain_green = ifft2(Output_in_frequency_domain_green);
     
     %stage 3 removing exponent
-    t_new = exp(Output_in_time_domain);
+    t_new_red = exp(Output_in_time_domain_red);
+    t_new_blue = exp(Output_in_time_domain_blue);
+    t_new_green = exp(Output_in_time_domain_green);
+    
     %ifftshow(t_new);
     %title('t_new');
+    %--------------------------------------------------------------------------------
     
+    output_image_red = ((L_r/alpha) - ((L_r-s_red)./(alpha*(t_new_red))));
     
-    output_image = ((L/alpha) - ((L-s)./(alpha*(t_new))));
-    
+    output_image_blue = ((L_b/alpha) - ((L_b-s_blue)./(alpha*(t_new_blue))));
+    output_image_green = ((L_g/alpha) - ((L_g-s_green)./(alpha*(t_new_green))));
+   
     %imshow(output_image);
-    get = ifftshow((output_image));
-    
+    get_red = ifftshow((output_image_red));
+    get_blue = ifftshow((output_image_blue));
+    get_green = ifftshow((output_image_green));
     
     %subplot(224)
+    %{
     figure()
     imshow(get)
     title("L*r");
+    %}
+    
+   %{
+    figure;
+    subplot(121);imshow(get);
+    subplot(122);imhist(get); 
+    imh = imadjust(get,[0.2,0.7],[0.0,1.0]);
+    %}
+    imh1_red = histeq(get_red);
+    imh1_blue = histeq(get_blue);
+    imh1_green = histeq(get_green);
+    
+    imh1 = RGB_recombiner(imh1_red,imh1_blue,imh1_green,chess);
+    
+    %figure;
+    %subplot(221);imshow(imh);title('stretch');
+    %subplot(222);imhist(imh);
+    %subplot(224)
+    figure
+    imshow(imh1);title('Output');
+    %subplot(122);imhist(imh1);
     
     
     %bit_layer(get);
